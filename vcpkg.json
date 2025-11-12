@@ -1,0 +1,8 @@
+{
+  "name": "litecrypt-app",
+  "version-string": "1.0.0",
+  "dependencies": [
+    "xlnt"
+  ],
+  "builtin-baseline": "8fbf295ab5283313932f65a597a2c1f09a73fafd"
+}

@@ -1,0 +1,76 @@
+name: Build LiteCrypt (Qt5 + Xlnt)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        build_type: [Release]
+        include:
+          - os: windows-latest
+            c_compiler: cl
+            cpp_compiler: cl
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.15.2'
+          host: ${{ runner.os == 'Windows' && 'windows' || 'linux' }}
+          install-deps: true
+
+      # ✅ vcpkg 设置
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/vcpkg
+          vcpkgGitURL: https://github.com/microsoft/vcpkg.git
+          runVcpkgInstall: true
+
+      # 设置构建目录
+      - name: Set build dir
+        id: vars
+        shell: pwsh
+        run: |
+          if ("$env:RUNNER_OS" -eq "Windows") {
+              Add-Content -Path $env:GITHUB_OUTPUT -Value "build-dir=${env:GITHUB_WORKSPACE}\build"
+          } else {
+              Add-Content -Path $env:GITHUB_OUTPUT -Value "build-dir=${env:GITHUB_WORKSPACE}/build"
+          }
+
+
+      # 配置 CMake
+      - name: Configure with CMake
+        run: >
+          cmake -B ${{ steps.vars.outputs.build-dir }}
+          -S ${{ github.workspace }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+
+      # 编译
+      - name: Build LiteCrypt
+        run: cmake --build ${{ steps.vars.outputs.build-dir }} --config ${{ matrix.build_type }}
+
+      # 上传可执行文件
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: litecrypt-binary-${{ runner.os }}-${{ github.run_id }}
+          path: ${{ steps.vars.outputs.build-dir }}/Release/bin/*
+
